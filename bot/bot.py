@@ -36,21 +36,31 @@ async def cmd_start(message: Message):
     """Обработка /start"""
     user = db.get_user(message.from_user.id)
     
+    # Формируем URL с параметрами
+    mini_app_url = config.MINI_APP_URL
+    if user:
+        mini_app_url += f"?player_tag={user['player_tag']}&points={user['current_month_points']}&user_id={message.from_user.id}"
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🎮 Открыть Mini App",
-            web_app=WebAppInfo(url=config.MINI_APP_URL)
+            web_app=WebAppInfo(url=mini_app_url)
         )],
         [InlineKeyboardButton(text="📊 Статистика", callback_data="stats")],
         [InlineKeyboardButton(text="🏆 Таблица лидеров", callback_data="leaderboard")]
     ])
     
     if user:
+        # Получаем позицию в рейтинге
+        leaderboard = db.get_leaderboard(limit=1000)
+        position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), None)
+        
         await message.answer(
             f"👋 Привет, {message.from_user.first_name}!\n\n"
             f"🎮 Твой тег: <code>{user['player_tag']}</code>\n"
             f"⭐ Очки в этом месяце: {user['current_month_points']}\n"
-            f"🏅 Всего очков: {user['total_points']}\n\n"
+            f"🏅 Всего очков: {user['total_points']}\n"
+            f"📊 Позиция в рейтинге: {position if position else '-'}\n\n"
             f"Открывай Mini App для участия в турнирах!",
             reply_markup=keyboard,
             parse_mode="HTML"
@@ -62,6 +72,7 @@ async def cmd_start(message: Message):
             "Для начала зарегистрируйся командой /register",
             reply_markup=keyboard
         )
+
 
 @router.message(Command("register"))
 async def cmd_register(message: Message, state: FSMContext):
