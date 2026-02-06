@@ -42,64 +42,117 @@
             <button class="tab" data-tab="history">📊 История</button>
         </div>
 
-        <!-- Tab: Play -->
-        <div class="tab-content active" id="play">
-            <div class="card">
-                <h3>⚔️ Режимы игры</h3>
-                <p class="hint">Выбери режим и сыграй в Clash Royale</p>
-                
-                <div class="game-modes">
-                    <button class="mode-btn" data-mode="PvP">
-                        <span class="mode-icon">🏆</span>
-                        <span class="mode-name">Ladder</span>
-                        <span class="mode-points">x1.0</span>
-                    </button>
-                    <button class="mode-btn" data-mode="challenge">
-                        <span class="mode-icon">🎯</span>
-                        <span class="mode-name">Challenge</span>
-                        <span class="mode-points">x1.5</span>
-                    </button>
-                    <button class="mode-btn" data-mode="tournament">
-                        <span class="mode-icon">🏅</span>
-                        <span class="mode-name">Tournament</span>
-                        <span class="mode-points">x2.0</span>
-                    </button>
-                    <button class="mode-btn" data-mode="grandChallenge">
-                        <span class="mode-icon">💎</span>
-                        <span class="mode-name">Grand Challenge</span>
-                        <span class="mode-points">x3.0</span>
-                    </button>
+<!-- Tab: Play -->
+<div class="tab-content active" id="play">
+    <!-- Match Finding Section -->
+    <div class="card" id="matchFindingCard">
+        <h3>⚔️ Найти соперника</h3>
+        <p class="hint">Найди игрока для дуэли и сыграй против него!</p>
+        
+        <button class="btn btn-primary" id="findMatchBtn">
+            🔍 Найти соперника
+        </button>
+        
+        <!-- Searching Animation -->
+        <div id="searchingSection" style="display: none;">
+            <div class="searching-container">
+                <div class="searching-spinner"></div>
+                <p class="searching-text">Ищем соперника...</p>
+                <div class="searching-dots">
+                    <span></span><span></span><span></span>
                 </div>
-
-                <div id="verificationSection" style="display: none;">
-                    <div class="verification-info">
-                        <p>🎮 Режим: <strong id="selectedMode">-</strong></p>
-                        <p class="hint">Сыграй бой в Clash Royale и нажми "Проверить"</p>
-                    </div>
-                    <button class="btn btn-primary" id="verifyBtn">
-                        ✅ Проверить игру
-                    </button>
-                </div>
-            </div>
-
-            <div class="card stats-mini">
-                <h4>📈 Твоя статистика</h4>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">Игр сыграно</span>
-                        <span class="stat-value" id="gamesPlayed">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Побед</span>
-                        <span class="stat-value" id="wins">0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Винрейт</span>
-                        <span class="stat-value" id="winrate">0%</span>
-                    </div>
-                </div>
+                <button class="btn btn-secondary" id="cancelSearchBtn">
+                    ❌ Отменить
+                </button>
             </div>
         </div>
+        
+        <!-- Match Found -->
+        <div id="matchFoundSection" style="display: none;">
+            <div class="match-found">
+                <div class="match-found-header">
+                    <div class="vs-animation">⚔️</div>
+                </div>
+                <div class="match-players">
+                    <div class="player-card you">
+                        <div class="player-avatar" id="yourAvatar">V</div>
+                        <div class="player-name" id="yourName">Ты</div>
+                        <div class="player-trophies" id="yourTrophies">🏆 ----</div>
+                    </div>
+                    <div class="vs-text">VS</div>
+                    <div class="player-card opponent">
+                        <div class="player-avatar" id="opponentAvatar">?</div>
+                        <div class="player-name" id="opponentName">Соперник</div>
+                        <div class="player-trophies" id="opponentTrophies">🏆 ----</div>
+                    </div>
+                </div>
+                <p class="match-info">Сыграй против <strong id="opponentNameStrong">соперника</strong> и нажми "Проверить игру"</p>
+                <button class="btn btn-primary" id="verifyMatchBtn">
+                    ✅ Проверить игру
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Modes Section -->
+    <div class="card">
+        <h3>🎯 Режимы игры</h3>
+        <p class="hint">Или выбери режим для соло игры</p>
+        
+        <div class="game-modes">
+            <button class="mode-btn" data-mode="PvP">
+                <span class="mode-icon">🏆</span>
+                <span class="mode-name">Ladder</span>
+                <span class="mode-points">x1.0</span>
+            </button>
+            <button class="mode-btn" data-mode="challenge">
+                <span class="mode-icon">🎯</span>
+                <span class="mode-name">Challenge</span>
+                <span class="mode-points">x1.5</span>
+            </button>
+            <button class="mode-btn" data-mode="tournament">
+                <span class="mode-icon">🏅</span>
+                <span class="mode-name">Tournament</span>
+                <span class="mode-points">x2.0</span>
+            </button>
+            <button class="mode-btn" data-mode="grandChallenge">
+                <span class="mode-icon">💎</span>
+                <span class="mode-name">Grand</span>
+                <span class="mode-points">x3.0</span>
+            </button>
+        </div>
+
+        <div id="verificationSection" style="display: none;">
+            <div class="verification-info">
+                <p>🎮 Режим: <strong id="selectedMode">-</strong></p>
+                <p class="hint">Сыграй бой в Clash Royale и нажми "Проверить"</p>
+            </div>
+            <button class="btn btn-primary" id="verifyBtn">
+                ✅ Проверить игру
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="card stats-mini">
+        <h4>📈 Твоя статистика</h4>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Игр сыграно</span>
+                <span class="stat-value" id="gamesPlayed">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Побед</span>
+                <span class="stat-value" id="wins">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Винрейт</span>
+                <span class="stat-value" id="winrate">0%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 
         <!-- Tab: Leaderboard -->
         <div class="tab-content" id="leaderboard">
