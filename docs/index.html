@@ -34,6 +34,18 @@
         <div id="notRegistered" style="display: none;" class="error-message">
             ⚠️ Ты не зарегистрирован! Отправь боту команду /register
         </div>
+        
+        <!-- ДОБАВЬ ЭТО: -->
+        <!-- Sync Button -->
+        <div class="card" id="syncCard" style="display: none;">
+            <h3>🔄 Синхронизация</h3>
+            <p class="hint">Вставь данные из команды /sync</p>
+            <textarea id="syncInput" placeholder='{"user_id": 123, "player_tag": "#ABC123", ...}' style="width: 100%; height: 100px; background: #1a1a1a; color: white; border: 1px solid #3a3a3a; border-radius: 0.5rem; padding: 0.75rem; font-family: monospace; font-size: 0.9rem; margin-bottom: 1rem;"></textarea>
+            <button class="btn btn-primary" id="syncDataBtn">
+                💾 Сохранить данные
+            </button>
+        </div>
+
 
         <!-- Tabs -->
         <div class="tabs">
