@@ -6,6 +6,8 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, W
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
+import json
+import base64
 
 import config
 from database import Database
@@ -31,34 +33,12 @@ class Registration(StatesGroup):
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     """Обработка /start"""
+    logger.info(f"User {message.from_user.id} started bot")
+    
     user = db.get_user(message.from_user.id)
     
-    # Формируем URL с параметрами
+    # Базовый URL Mini App
     mini_app_url = config.MINI_APP_URL
-    
-    if user:
-        # Получаем позицию в рейтинге
-        leaderboard = db.get_leaderboard(limit=1000)
-        position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), '-')
-        
-        # Получаем статистику
-        games = db.get_user_games(message.from_user.id, limit=1000)
-        wins = sum(1 for g in games if g['result'] == 'win')
-        losses = sum(1 for g in games if g['result'] == 'loss')
-        
-        mini_app_url += (
-            f"?user_id={message.from_user.id}"
-            f"&player_tag={user['player_tag']}"
-            f"&points={user['current_month_points']}"
-            f"&total_points={user['total_points']}"
-            f"&position={position}"
-            f"&games={len(games)}"
-            f"&wins={wins}"
-            f"&losses={losses}"
-            f"&registered=1"
-        )
-    else:
-        mini_app_url += f"?user_id={message.from_user.id}&registered=0"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
@@ -72,23 +52,94 @@ async def cmd_start(message: Message):
     ])
     
     if user:
+        # Получаем позицию в рейтинге
+        leaderboard = db.get_leaderboard(limit=1000)
+        position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), None)
+        if position is None:
+            position = '-'
+        
+        # Получаем статистику
+        games = db.get_user_games(message.from_user.id, limit=1000)
+        
         await message.answer(
             f"👋 Привет, {message.from_user.first_name}!\n\n"
+            f"✅ ТЫ ЗАРЕГИСТРИРОВАН!\n"
             f"🎮 Твой тег: <code>{user['player_tag']}</code>\n"
             f"⭐ Очки в этом месяце: {user['current_month_points']}\n"
             f"🏅 Всего очков: {user['total_points']}\n"
-            f"📊 Позиция: {position} место\n\n"
-            f"Открывай Mini App для участия в турнирах!",
+            f"📊 Позиция: {position} место\n"
+            f"🎯 Игр сыграно: {len(games)}\n\n"
+            f"💡 Используй /sync чтобы синхронизировать данные с Mini App!",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
     else:
         await message.answer(
             "👋 Привет! Добро пожаловать в турнирный бот Clash Royale!\n\n"
+            f"⚠️ ТЫ НЕ ЗАРЕГИСТРИРОВАН!\n\n"
             "🎮 Участвуй в соревнованиях и получай награды в конце месяца!\n\n"
-            "⚠️ Для начала зарегистрируйся командой /register",
+            "Для начала зарегистрируйся командой /register",
             reply_markup=keyboard
         )
+
+@router.message(Command("sync"))
+async def cmd_sync(message: Message):
+    """Синхронизация данных с Mini App"""
+    user = db.get_user(message.from_user.id)
+    
+    if not user:
+        await message.answer(
+            "❌ Сначала зарегистрируйся: /register\n\n"
+            "После регистрации используй /sync для синхронизации с Mini App"
+        )
+        return
+    
+    # Получаем статистику
+    leaderboard = db.get_leaderboard(limit=1000)
+    position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), None)
+    
+    games = db.get_user_games(message.from_user.id, limit=1000)
+    wins = sum(1 for g in games if g['result'] == 'win')
+    losses = sum(1 for g in games if g['result'] == 'loss')
+    
+    # Формируем JSON для Mini App
+    sync_data = {
+        'user_id': message.from_user.id,
+        'player_tag': user['player_tag'],
+        'points': user['current_month_points'],
+        'total_points': user['total_points'],
+        'position': str(position) if position else '-',
+        'games': len(games),
+        'wins': wins,
+        'losses': losses,
+        'registered': True,
+        'first_name': message.from_user.first_name
+    }
+    
+    # Кодируем данные в base64
+    data_json = json.dumps(sync_data)
+    data_encoded = base64.b64encode(data_json.encode()).decode()
+    
+    # Создаем URL с данными в hash
+    sync_url = f"{config.MINI_APP_URL}#sync={data_encoded}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🔄 Открыть Mini App",
+            web_app=WebAppInfo(url=sync_url)
+        )]
+    ])
+    
+    await message.answer(
+        "✅ Данные синхронизированы!\n\n"
+        f"🎮 Тег: <code>{user['player_tag']}</code>\n"
+        f"⭐ Очки: {user['current_month_points']}\n"
+        f"📊 Игр: {len(games)} (побед: {wins})\n"
+        f"🏆 Позиция: {position if position else '-'} место\n\n"
+        "Открой Mini App через кнопку ниже:",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
 
 @router.message(Command("register"))
 async def cmd_register(message: Message, state: FSMContext):
@@ -98,7 +149,9 @@ async def cmd_register(message: Message, state: FSMContext):
     if user:
         await message.answer(
             f"✅ Ты уже зарегистрирован!\n"
-            f"Твой тег: <code>{user['player_tag']}</code>",
+            f"Твой тег: <code>{user['player_tag']}</code>\n"
+            f"Очки: {user['current_month_points']}\n\n"
+            f"Используй /sync для синхронизации с Mini App",
             parse_mode="HTML"
         )
         return
@@ -106,7 +159,8 @@ async def cmd_register(message: Message, state: FSMContext):
     await message.answer(
         "📝 Отправь свой Player Tag из Clash Royale\n\n"
         "Формат: #ABC123 или ABC123\n"
-        "Найти тег можно в профиле игры"
+        "Найти тег можно в профиле игры\n\n"
+        "⚠️ Если у тебя нет Clash Royale, отправь любой тег для теста, например: #TEST123"
     )
     await state.set_state(Registration.waiting_for_tag)
 
@@ -119,26 +173,38 @@ async def process_registration(message: Message, state: FSMContext):
     if not player_tag.startswith('#'):
         player_tag = '#' + player_tag
     
-    # Проверяем через API
-    msg = await message.answer("⏳ Проверяю тег...")
-    
-    player_data = cr_api.get_player(player_tag)
-    
-    if not player_data:
-        await msg.edit_text(
-            "❌ Не удалось найти игрока с таким тегом.\n"
-            "Проверь правильность и попробуй снова."
-        )
-        return
-    
     # Проверяем, не занят ли тег
     existing_user = db.get_user_by_tag(player_tag)
     if existing_user:
-        await msg.edit_text(
-            "❌ Этот тег уже зарегистрирован другим пользователем!"
+        await message.answer(
+            "❌ Этот тег уже зарегистрирован другим пользователем!\n"
+            "Попробуй другой тег."
         )
-        await state.clear()
         return
+    
+    # Проверяем через API (если тег не TEST)
+    if not player_tag.startswith('#TEST'):
+        msg = await message.answer("⏳ Проверяю тег через Clash Royale API...")
+        
+        player_data = cr_api.get_player(player_tag)
+        
+        if not player_data:
+            await msg.edit_text(
+                "❌ Не удалось найти игрока с таким тегом в Clash Royale API.\n\n"
+                "Возможно:\n"
+                "- Тег неправильный\n"
+                "- API недоступен\n\n"
+                "Попробуй еще раз или отправь #TEST123 для тестовой регистрации"
+            )
+            return
+    else:
+        # Тестовая регистрация
+        player_data = {
+            'name': message.from_user.first_name,
+            'trophies': 5000,
+            'expLevel': 13
+        }
+        msg = await message.answer("🧪 Тестовая регистрация...")
     
     # Регистрируем
     success = db.register_user(
@@ -153,9 +219,13 @@ async def process_registration(message: Message, state: FSMContext):
             f"✅ Регистрация успешна!\n\n"
             f"👤 Имя: {player_data.get('name', 'Unknown')}\n"
             f"🏆 Трофеи: {player_data.get('trophies', 0)}\n"
-            f"🎖 Уровень: {player_data.get('expLevel', 0)}\n\n"
-            f"Теперь используй /start чтобы открыть Mini App!"
+            f"🎖 Уровень: {player_data.get('expLevel', 0)}\n"
+            f"🎮 Тег: <code>{player_tag}</code>\n\n"
+            f"Теперь используй /sync чтобы синхронизировать данные с Mini App!",
+            parse_mode="HTML"
         )
+        
+        logger.info(f"User {message.from_user.id} registered with tag {player_tag}")
     else:
         await msg.edit_text("❌ Ошибка регистрации. Попробуй позже.")
     
@@ -204,7 +274,8 @@ async def cmd_verify(message: Message):
         f"🎮 Режим: {battle_data['game_mode']}\n"
         f"🏟 Арена: {battle_data['arena']}\n"
         f"⭐ Получено очков: +{points}\n\n"
-        f"💰 Всего очков в этом месяце: {user['current_month_points']}"
+        f"💰 Всего очков в этом месяце: {user['current_month_points']}\n\n"
+        f"💡 Используй /sync чтобы обновить данные в Mini App!"
     )
 
 @router.message(Command("stats"))
@@ -256,6 +327,42 @@ async def cmd_leaderboard(message: Message):
     
     await message.answer(text)
 
+@router.message(Command("help"))
+async def cmd_help(message: Message):
+    """Помощь"""
+    help_text = """
+📖 <b>Команды бота:</b>
+
+/start - Главное меню
+/register - Регистрация по Player Tag
+/sync - Синхронизация с Mini App
+/verify - Проверить последнюю игру
+/stats - Твоя статистика
+/leaderboard - Топ-10 игроков
+/help - Эта справка
+
+<b>Как начать:</b>
+1️⃣ /register - зарегистрируйся
+2️⃣ /sync - открой Mini App
+3️⃣ Сыграй в Clash Royale
+4️⃣ /verify - проверь игру
+5️⃣ /sync - обнови данные в Mini App
+
+<b>Система очков:</b>
+🏆 Победа: 10 очков
+🤝 Ничья: 5 очков
+💔 Поражение: 2 очка
+👑 За корону: +2 очка
+🔥 3-коронка: +10 бонус
+
+<b>Множители режимов:</b>
+⚔️ Ladder: x1.0
+🎯 Challenge: x1.5
+🏅 Tournament: x2.0
+💎 Grand Challenge: x3.0
+"""
+    await message.answer(help_text, parse_mode="HTML")
+
 # Callback handlers
 @router.callback_query(F.data == "stats")
 async def callback_stats(callback: CallbackQuery):
@@ -278,6 +385,7 @@ async def main():
     dp.include_router(router)
     
     logger.info("✅ Bot started successfully!")
+    logger.info(f"Mini App URL: {config.MINI_APP_URL}")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
