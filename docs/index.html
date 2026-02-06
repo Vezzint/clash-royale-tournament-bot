@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Clash Royale Tournament</title>
+    
+    <!-- Отключаем кэш -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <link rel="stylesheet" href="css/style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -24,12 +30,16 @@
             </div>
         </header>
 
+        <!-- Not Registered Warning -->
+        <div id="notRegistered" style="display: none;" class="error-message">
+            ⚠️ Ты не зарегистрирован! Отправь боту команду /register
+        </div>
+
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" data-tab="play">🎮 Играть</button>
             <button class="tab" data-tab="leaderboard">🏆 Топ</button>
             <button class="tab" data-tab="history">📊 История</button>
-            <button class="tab" data-tab="rewards">🎁 Награды</button>
         </div>
 
         <!-- Tab: Play -->
@@ -39,14 +49,9 @@
                 <p class="hint">Выбери режим и сыграй в Clash Royale</p>
                 
                 <div class="game-modes">
-                    <button class="mode-btn" data-mode="ladder">
+                    <button class="mode-btn" data-mode="PvP">
                         <span class="mode-icon">🏆</span>
                         <span class="mode-name">Ladder</span>
-                        <span class="mode-points">x1.0</span>
-                    </button>
-                    <button class="mode-btn" data-mode="1v1">
-                        <span class="mode-icon">⚔️</span>
-                        <span class="mode-name">1v1 Battle</span>
                         <span class="mode-points">x1.0</span>
                     </button>
                     <button class="mode-btn" data-mode="challenge">
@@ -59,12 +64,17 @@
                         <span class="mode-name">Tournament</span>
                         <span class="mode-points">x2.0</span>
                     </button>
+                    <button class="mode-btn" data-mode="grandChallenge">
+                        <span class="mode-icon">💎</span>
+                        <span class="mode-name">Grand Challenge</span>
+                        <span class="mode-points">x3.0</span>
+                    </button>
                 </div>
 
                 <div id="verificationSection" style="display: none;">
                     <div class="verification-info">
                         <p>🎮 Режим: <strong id="selectedMode">-</strong></p>
-                        <p class="hint">Сыграй бой и нажми "Проверить игру"</p>
+                        <p class="hint">Сыграй бой в Clash Royale и нажми "Проверить"</p>
                     </div>
                     <button class="btn btn-primary" id="verifyBtn">
                         ✅ Проверить игру
@@ -102,6 +112,14 @@
             </div>
 
             <div class="card">
+                <h4>📍 Твоя позиция</h4>
+                <div class="user-position">
+                    <span class="position-number" id="userPosition">-</span>
+                    <span class="position-label">место</span>
+                </div>
+            </div>
+
+            <div class="card">
                 <h4>📅 До конца месяца</h4>
                 <div class="countdown" id="countdown">-</div>
             </div>
@@ -113,53 +131,6 @@
                 <h3>📊 История игр</h3>
                 <div id="historyList" class="history-list">
                     <div class="loading">Загрузка...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Rewards -->
-        <div class="tab-content" id="rewards">
-            <div class="card">
-                <h3>🎁 Награды месяца</h3>
-                <p class="hint">Награды выдаются автоматически в начале следующего месяца</p>
-                
-                <div class="rewards-list">
-                    <div class="reward-item gold">
-                        <div class="reward-place">🥇 1 место</div>
-                        <div class="reward-prizes">
-                            <span>💎 1000 Gems</span>
-                            <span>🪙 50000 Gold</span>
-                        </div>
-                    </div>
-                    <div class="reward-item silver">
-                        <div class="reward-place">🥈 2 место</div>
-                        <div class="reward-prizes">
-                            <span>💎 500 Gems</span>
-                            <span>🪙 25000 Gold</span>
-                        </div>
-                    </div>
-                    <div class="reward-item bronze">
-                        <div class="reward-place">🥉 3 место</div>
-                        <div class="reward-prizes">
-                            <span>💎 250 Gems</span>
-                            <span>🪙 10000 Gold</span>
-                        </div>
-                    </div>
-                    <div class="reward-item">
-                        <div class="reward-place">⭐ Топ 10</div>
-                        <div class="reward-prizes">
-                            <span>💎 100 Gems</span>
-                            <span>🪙 5000 Gold</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <h4>🏅 Твоя позиция</h4>
-                    <div class="user-position">
-                        <span class="position-number" id="userPosition">-</span>
-                        <span class="position-label">место</span>
-                    </div>
                 </div>
             </div>
         </div>
