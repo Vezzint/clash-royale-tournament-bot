@@ -3,69 +3,25 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
 
-// === ПОЛУЧЕНИЕ ДАННЫХ ===
+// === ЗАГРУЗКА ДАННЫХ ИЗ LOCALSTORAGE ===
 
-function parseDataFromHash() {
-    // Получаем hash (всё после #)
-    const hash = window.location.hash;
-    
-    console.log('Full hash:', hash);
-    
-    if (hash && hash.includes('sync=')) {
+function loadSavedData() {
+    const saved = localStorage.getItem('userData');
+    if (saved) {
         try {
-            // Удаляем # и получаем часть после sync=
-            const hashPart = hash.substring(1); // убираем #
-            const syncPart = hashPart.split('sync=')[1];
-            
-            console.log('Sync part:', syncPart);
-            
-            // Декодируем из base64
-            const jsonData = atob(syncPart);
-            console.log('Decoded JSON:', jsonData);
-            
-            const data = JSON.parse(jsonData);
-            console.log('Parsed data:', data);
-            
+            const data = JSON.parse(saved);
+            console.log('Loaded from localStorage:', data);
             return data;
         } catch (e) {
-            console.error('Parse hash error:', e);
+            console.error('Parse error:', e);
         }
     }
-    
     return null;
 }
 
-function loadUserData() {
-    // 1. Проверяем hash (приоритет)
-    const hashData = parseDataFromHash();
-    if (hashData) {
-        console.log('Found data in hash!');
-        // Сохраняем в localStorage
-        localStorage.setItem('userData', JSON.stringify(hashData));
-        return hashData;
-    }
-    
-    // 2. Проверяем localStorage
-    const savedData = localStorage.getItem('userData');
-    if (savedData) {
-        try {
-            const data = JSON.parse(savedData);
-            console.log('Found data in localStorage:', data);
-            return data;
-        } catch (e) {
-            console.error('Parse localStorage error:', e);
-        }
-    }
-    
-    // 3. Данные не найдены
-    console.log('No data found!');
-    return null;
-}
+const savedData = loadSavedData();
 
-// Загружаем данные
-const loadedData = loadUserData();
-
-// Базовые данные из Telegram
+// Базовые данные
 let userData = {
     userId: tg.initDataUnsafe?.user?.id || null,
     firstName: tg.initDataUnsafe?.user?.first_name || 'Player',
@@ -80,27 +36,25 @@ let userData = {
     registered: false
 };
 
-// Применяем загруженные данные
-if (loadedData) {
-    console.log('Applying loaded data...');
+// Применяем сохраненные данные
+if (savedData) {
     userData = {
-        userId: loadedData.user_id || userData.userId,
-        firstName: loadedData.first_name || userData.firstName,
+        userId: savedData.user_id || userData.userId,
+        firstName: savedData.first_name || userData.firstName,
         username: userData.username,
-        playerTag: loadedData.player_tag || null,
-        currentMonthPoints: loadedData.points || 0,
-        totalPoints: loadedData.total_points || 0,
-        gamesPlayed: loadedData.games || 0,
-        wins: loadedData.wins || 0,
-        losses: loadedData.losses || 0,
-        position: loadedData.position || '-',
-        registered: loadedData.registered === true || loadedData.registered === 'true'
+        playerTag: savedData.player_tag || null,
+        currentMonthPoints: savedData.points || 0,
+        totalPoints: savedData.total_points || 0,
+        gamesPlayed: savedData.games || 0,
+        wins: savedData.wins || 0,
+        losses: savedData.losses || 0,
+        position: savedData.position || '-',
+        registered: savedData.registered === true
     };
+    console.log('User is registered!', userData);
 }
 
-console.log('=== FINAL USER DATA ===');
-console.log(userData);
-console.log('Is registered:', userData.registered);
+console.log('Final userData:', userData);
 
 let selectedMode = null;
 
@@ -119,24 +73,24 @@ function initApp() {
     tg.BackButton.show();
     tg.BackButton.onClick(() => tg.close());
     
-    // Проверяем регистрацию
+    // Показываем предупреждение или кнопку синхронизации
     if (!userData.registered) {
         document.getElementById('notRegistered').style.display = 'block';
+        document.getElementById('syncCard').style.display = 'block';
     }
 }
 
 function setupEventListeners() {
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            const tabName = tab.dataset.tab;
-            switchTab(tabName);
+            switchTab(tab.dataset.tab);
         });
     });
     
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (!userData.registered) {
-                tg.showAlert('Сначала зарегистрируйся через /register, затем используй /sync');
+                tg.showAlert('Сначала зарегистрируйся через /register и /sync');
                 return;
             }
             selectMode(btn.dataset.mode);
@@ -144,11 +98,69 @@ function setupEventListeners() {
     });
     
     document.getElementById('verifyBtn').addEventListener('click', verifyGame);
+    document.getElementById('syncDataBtn').addEventListener('click', syncData);
     
     // Match finding
     document.getElementById('findMatchBtn').addEventListener('click', startMatchSearch);
     document.getElementById('cancelSearchBtn').addEventListener('click', cancelMatchSearch);
     document.getElementById('verifyMatchBtn').addEventListener('click', verifyMatch);
+}
+
+// === СИНХРОНИЗАЦИЯ ДАННЫХ ===
+function syncData() {
+    const input = document.getElementById('syncInput').value.trim();
+    
+    if (!input) {
+        tg.showAlert('Вставь данные из команды /sync');
+        return;
+    }
+    
+    try {
+        const data = JSON.parse(input);
+        
+        // Проверяем обязательные поля
+        if (!data.player_tag || !data.user_id) {
+            tg.showAlert('Неверный формат данных!');
+            return;
+        }
+        
+        // Сохраняем в localStorage
+        localStorage.setItem('userData', JSON.stringify(data));
+        
+        // Применяем данные
+        userData = {
+            userId: data.user_id,
+            firstName: data.first_name || userData.firstName,
+            username: userData.username,
+            playerTag: data.player_tag,
+            currentMonthPoints: data.points || 0,
+            totalPoints: data.total_points || 0,
+            gamesPlayed: data.games || 0,
+            wins: data.wins || 0,
+            losses: data.losses || 0,
+            position: data.position || '-',
+            registered: true
+        };
+        
+        // Обновляем интерфейс
+        updateUserInfo();
+        updateStats();
+        
+        // Скрываем предупреждение и карточку синхронизации
+        document.getElementById('notRegistered').style.display = 'none';
+        document.getElementById('syncCard').style.display = 'none';
+        
+        // Очищаем поле ввода
+        document.getElementById('syncInput').value = '';
+        
+        tg.showAlert('✅ Данные успешно синхронизированы!');
+        tg.HapticFeedback.notificationOccurred('success');
+        
+    } catch (e) {
+        console.error('Sync error:', e);
+        tg.showAlert('❌ Ошибка! Проверь формат данных');
+        tg.HapticFeedback.notificationOccurred('error');
+    }
 }
 
 function switchTab(tabName) {
@@ -199,7 +211,7 @@ async function verifyGame() {
     
     tg.HapticFeedback.impactOccurred('medium');
     
-    tg.showAlert('Сыграй бой в Clash Royale, затем используй команду /verify в боте');
+    tg.showAlert('Сыграй бой в Clash Royale, затем используй /verify в боте. После этого снова /sync для обновления очков');
     
     setTimeout(() => {
         btn.textContent = '✅ Проверить игру';
@@ -216,8 +228,7 @@ function updateUserInfo() {
     if (userData.registered && userData.playerTag) {
         document.getElementById('playerTag').textContent = userData.playerTag;
     } else {
-        // Показываем статус для отладки
-        document.getElementById('playerTag').textContent = `registered=${userData.registered}, userId=${userData.userId}`;
+        document.getElementById('playerTag').textContent = 'Не зарегистрирован';
     }
     
     document.getElementById('userPoints').textContent = userData.currentMonthPoints;
@@ -237,7 +248,7 @@ function updateStats() {
 
 function loadLeaderboard() {
     const list = document.getElementById('leaderboardList');
-    list.innerHTML = '<div class="hint" style="text-align: center; padding: 2rem;">Используй команду /leaderboard в боте для просмотра полной таблицы лидеров</div>';
+    list.innerHTML = '<div class="hint" style="text-align: center; padding: 2rem;">Используй команду /leaderboard в боте</div>';
 }
 
 function loadHistory() {
@@ -248,7 +259,7 @@ function loadHistory() {
             <div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
                 <p>Зарегистрируйся через /register</p>
-                <p class="hint">Затем используй /sync для синхронизации</p>
+                <p class="hint">Затем используй /sync</p>
             </div>
         `;
         return;
@@ -259,13 +270,12 @@ function loadHistory() {
             <div class="empty-state">
                 <div class="empty-state-icon">🎮</div>
                 <p>Пока нет игр</p>
-                <p class="hint">Сыграй свою первую игру!</p>
             </div>
         `;
         return;
     }
     
-    list.innerHTML = '<div class="hint" style="text-align: center; padding: 2rem;">Используй команду /stats в боте для просмотра детальной истории</div>';
+    list.innerHTML = '<div class="hint" style="text-align: center; padding: 2rem;">Используй /stats в боте</div>';
 }
 
 function updateCountdown() {
@@ -279,72 +289,50 @@ function updateCountdown() {
     document.getElementById('countdown').textContent = `${days}д ${hours}ч`;
 }
 
-// === MATCH FINDING SYSTEM ===
-
+// === MATCH FINDING (остальное без изменений) ===
 let matchSearching = false;
 let matchFound = false;
 let currentOpponent = null;
 
 function startMatchSearch() {
     if (!userData.registered) {
-        tg.showAlert('Сначала зарегистрируйся через /register, затем используй /sync');
+        tg.showAlert('Сначала зарегистрируйся через /register и /sync');
         return;
     }
     
     matchSearching = true;
-    
     document.getElementById('findMatchBtn').style.display = 'none';
     document.getElementById('searchingSection').style.display = 'block';
-    
     tg.HapticFeedback.impactOccurred('medium');
     
-    const searchTime = Math.random() * 4000 + 3000;
-    
     setTimeout(() => {
-        if (matchSearching) {
-            findMatch();
-        }
-    }, searchTime);
+        if (matchSearching) findMatch();
+    }, Math.random() * 4000 + 3000);
 }
 
 function cancelMatchSearch() {
     matchSearching = false;
-    
     document.getElementById('searchingSection').style.display = 'none';
     document.getElementById('findMatchBtn').style.display = 'block';
-    
     tg.HapticFeedback.impactOccurred('soft');
 }
 
 function findMatch() {
     matchSearching = false;
     matchFound = true;
-    
     currentOpponent = generateOpponent();
-    
     document.getElementById('searchingSection').style.display = 'none';
-    
     showMatchFound(currentOpponent);
-    
     tg.HapticFeedback.notificationOccurred('success');
 }
 
 function generateOpponent() {
-    const names = [
-        'ProGamer', 'CrownKing', 'Arena15', 'Challenger', 'Winner',
-        'Champion', 'Gladiator', 'Warrior', 'Conqueror', 'Master',
-        'Legend', 'Titan', 'Phoenix', 'Dragon', 'Shadow'
-    ];
-    
-    const name = names[Math.floor(Math.random() * names.length)];
-    const trophies = Math.floor(Math.random() * 3000) + 4000;
-    const tag = '#' + Math.random().toString(36).substr(2, 8).toUpperCase();
-    
+    const names = ['ProGamer', 'CrownKing', 'Arena15', 'Challenger', 'Winner', 'Champion', 'Gladiator'];
     return {
-        name: name,
-        trophies: trophies,
-        tag: tag,
-        avatar: name.charAt(0)
+        name: names[Math.floor(Math.random() * names.length)],
+        trophies: Math.floor(Math.random() * 3000) + 4000,
+        tag: '#' + Math.random().toString(36).substr(2, 8).toUpperCase(),
+        avatar: names[0].charAt(0)
     };
 }
 
@@ -352,12 +340,10 @@ function showMatchFound(opponent) {
     document.getElementById('yourAvatar').textContent = userData.firstName.charAt(0).toUpperCase();
     document.getElementById('yourName').textContent = userData.firstName;
     document.getElementById('yourTrophies').textContent = '🏆 ' + (userData.currentMonthPoints * 10 || 5000);
-    
-    document.getElementById('opponentAvatar').textContent = opponent.avatar;
+    document.getElementById('opponentAvatar').textContent = opponent.name.charAt(0);
     document.getElementById('opponentName').textContent = opponent.name;
     document.getElementById('opponentTrophies').textContent = '🏆 ' + opponent.trophies;
     document.getElementById('opponentNameStrong').textContent = opponent.name;
-    
     document.getElementById('matchFoundSection').style.display = 'block';
 }
 
@@ -366,28 +352,20 @@ function verifyMatch() {
         tg.showAlert('Ошибка: соперник не найден');
         return;
     }
-    
     const btn = document.getElementById('verifyMatchBtn');
     btn.textContent = '⏳ Проверяем...';
     btn.disabled = true;
-    
     tg.HapticFeedback.impactOccurred('medium');
-    
-    tg.showAlert('Сыграй против соперника, затем используй /verify в боте');
-    
-    setTimeout(() => {
-        resetMatchFinding();
-    }, 2000);
+    tg.showAlert('Используй /verify в боте, затем /sync для обновления');
+    setTimeout(() => resetMatchFinding(), 2000);
 }
 
 function resetMatchFinding() {
     matchFound = false;
     currentOpponent = null;
-    
     document.getElementById('matchFoundSection').style.display = 'none';
     document.getElementById('searchingSection').style.display = 'none';
     document.getElementById('findMatchBtn').style.display = 'block';
-    
     const btn = document.getElementById('verifyMatchBtn');
     btn.textContent = '✅ Проверить игру';
     btn.disabled = false;
