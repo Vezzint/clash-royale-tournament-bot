@@ -3,21 +3,29 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
 
-// === ОТЛАДКА - УДАЛИ ПОТОМ ===
-console.log('=== MINI APP DEBUG ===');
-console.log('Full URL:', window.location.href);
-console.log('Search params:', window.location.search);
-console.log('All params:', Object.fromEntries(new URLSearchParams(window.location.search)));
-// === КОНЕЦ ОТЛАДКИ ===
+// === ПОЛУЧАЕМ ДАННЫЕ ИЗ TELEGRAM ===
+// Парсим initData если есть
+let initData = {};
+if (tg.initData) {
+    const params = new URLSearchParams(tg.initData);
+    const userStr = params.get('user');
+    if (userStr) {
+        try {
+            initData = JSON.parse(userStr);
+        } catch (e) {
+            console.error('Parse error:', e);
+        }
+    }
+}
 
-// Парсим параметры из URL
+// Парсим URL параметры
 const urlParams = new URLSearchParams(window.location.search);
 
-// Данные пользователя из URL
+// ПРИОРИТЕТ: initDataUnsafe > URL params
 let userData = {
-    userId: urlParams.get('user_id') || tg.initDataUnsafe?.user?.id || null,
-    firstName: urlParams.get('first_name') || tg.initDataUnsafe?.user?.first_name || 'Player',
-    username: tg.initDataUnsafe?.user?.username || 'player',
+    userId: tg.initDataUnsafe?.user?.id || urlParams.get('user_id') || null,
+    firstName: tg.initDataUnsafe?.user?.first_name || urlParams.get('first_name') || 'Player',
+    username: tg.initDataUnsafe?.user?.username || urlParams.get('username') || 'player',
     playerTag: urlParams.get('player_tag') || null,
     currentMonthPoints: parseInt(urlParams.get('points')) || 0,
     totalPoints: parseInt(urlParams.get('total_points')) || 0,
@@ -28,10 +36,10 @@ let userData = {
     registered: urlParams.get('registered') === '1'
 };
 
-// === ОТЛАДКА ===
-console.log('Parsed userData:', userData);
-console.log('Is registered?', userData.registered);
-// === КОНЕЦ ОТЛАДКИ ===
+// Отладка
+console.log('URL params:', Object.fromEntries(urlParams));
+console.log('User data:', userData);
+console.log('Is registered:', userData.registered);
 
 let selectedMode = null;
 
@@ -74,6 +82,11 @@ function setupEventListeners() {
     });
     
     document.getElementById('verifyBtn').addEventListener('click', verifyGame);
+    
+    // Match finding
+    document.getElementById('findMatchBtn').addEventListener('click', startMatchSearch);
+    document.getElementById('cancelSearchBtn').addEventListener('click', cancelMatchSearch);
+    document.getElementById('verifyMatchBtn').addEventListener('click', verifyMatch);
 }
 
 function switchTab(tabName) {
@@ -124,14 +137,7 @@ async function verifyGame() {
     
     tg.HapticFeedback.impactOccurred('medium');
     
-    // Отправляем команду боту
-    tg.sendData(JSON.stringify({
-        action: 'verify',
-        mode: selectedMode,
-        userId: userData.userId
-    }));
-    
-    tg.showAlert('Команда отправлена! Используй /verify в боте для проверки игры');
+    tg.showAlert('Сыграй бой в Clash Royale, затем используй команду /verify в боте');
     
     setTimeout(() => {
         btn.textContent = '✅ Проверить игру';
@@ -153,7 +159,9 @@ function updateUserInfo() {
     if (userData.playerTag) {
         document.getElementById('playerTag').textContent = userData.playerTag;
     } else {
-        document.getElementById('playerTag').textContent = 'Не зарегистрирован';
+        // Показываем отладочную информацию
+        const debugInfo = `registered=${userData.registered}, userId=${userData.userId}`;
+        document.getElementById('playerTag').textContent = debugInfo;
     }
     
     document.getElementById('userPoints').textContent = userData.currentMonthPoints;
@@ -213,16 +221,12 @@ function updateCountdown() {
     
     document.getElementById('countdown').textContent = `${days}д ${hours}ч`;
 }
+
 // === MATCH FINDING SYSTEM ===
 
 let matchSearching = false;
 let matchFound = false;
 let currentOpponent = null;
-
-// Setup match finding listeners
-document.getElementById('findMatchBtn').addEventListener('click', startMatchSearch);
-document.getElementById('cancelSearchBtn').addEventListener('click', cancelMatchSearch);
-document.getElementById('verifyMatchBtn').addEventListener('click', verifyMatch);
 
 function startMatchSearch() {
     if (!userData.registered) {
@@ -232,16 +236,12 @@ function startMatchSearch() {
     
     matchSearching = true;
     
-    // Скрываем кнопку поиска
     document.getElementById('findMatchBtn').style.display = 'none';
-    
-    // Показываем анимацию поиска
     document.getElementById('searchingSection').style.display = 'block';
     
     tg.HapticFeedback.impactOccurred('medium');
     
-    // Симулируем поиск (3-7 секунд)
-    const searchTime = Math.random() * 4000 + 3000; // 3-7 сек
+    const searchTime = Math.random() * 4000 + 3000;
     
     setTimeout(() => {
         if (matchSearching) {
@@ -253,10 +253,7 @@ function startMatchSearch() {
 function cancelMatchSearch() {
     matchSearching = false;
     
-    // Скрываем поиск
     document.getElementById('searchingSection').style.display = 'none';
-    
-    // Показываем кнопку поиска
     document.getElementById('findMatchBtn').style.display = 'block';
     
     tg.HapticFeedback.impactOccurred('soft');
@@ -266,13 +263,10 @@ function findMatch() {
     matchSearching = false;
     matchFound = true;
     
-    // Генерируем случайного соперника
     currentOpponent = generateOpponent();
     
-    // Скрываем поиск
     document.getElementById('searchingSection').style.display = 'none';
     
-    // Показываем найденный матч
     showMatchFound(currentOpponent);
     
     tg.HapticFeedback.notificationOccurred('success');
@@ -286,7 +280,7 @@ function generateOpponent() {
     ];
     
     const name = names[Math.floor(Math.random() * names.length)];
-    const trophies = Math.floor(Math.random() * 3000) + 4000; // 4000-7000
+    const trophies = Math.floor(Math.random() * 3000) + 4000;
     const tag = '#' + Math.random().toString(36).substr(2, 8).toUpperCase();
     
     return {
@@ -298,18 +292,15 @@ function generateOpponent() {
 }
 
 function showMatchFound(opponent) {
-    // Заполняем данные игрока
     document.getElementById('yourAvatar').textContent = userData.firstName.charAt(0).toUpperCase();
     document.getElementById('yourName').textContent = userData.firstName;
-    document.getElementById('yourTrophies').textContent = '🏆 ' + (userData.currentMonthPoints * 10);
+    document.getElementById('yourTrophies').textContent = '🏆 ' + (userData.currentMonthPoints * 10 || 5000);
     
-    // Заполняем данные соперника
     document.getElementById('opponentAvatar').textContent = opponent.avatar;
     document.getElementById('opponentName').textContent = opponent.name;
     document.getElementById('opponentTrophies').textContent = '🏆 ' + opponent.trophies;
     document.getElementById('opponentNameStrong').textContent = opponent.name;
     
-    // Показываем секцию
     document.getElementById('matchFoundSection').style.display = 'block';
 }
 
@@ -325,17 +316,9 @@ function verifyMatch() {
     
     tg.HapticFeedback.impactOccurred('medium');
     
-    // Отправляем команду боту
-    tg.sendData(JSON.stringify({
-        action: 'verify_match',
-        opponent: currentOpponent,
-        userId: userData.userId
-    }));
-    
-    tg.showAlert('Команда отправлена! Используй /verify в боте для проверки игры');
+    tg.showAlert('Сыграй против соперника, затем используй /verify в боте');
     
     setTimeout(() => {
-        // Сбрасываем всё
         resetMatchFinding();
     }, 2000);
 }
@@ -344,16 +327,11 @@ function resetMatchFinding() {
     matchFound = false;
     currentOpponent = null;
     
-    // Скрываем секции
     document.getElementById('matchFoundSection').style.display = 'none';
     document.getElementById('searchingSection').style.display = 'none';
-    
-    // Показываем кнопку поиска
     document.getElementById('findMatchBtn').style.display = 'block';
     
-    // Сбрасываем кнопку
     const btn = document.getElementById('verifyMatchBtn');
     btn.textContent = '✅ Проверить игру';
     btn.disabled = false;
 }
-
