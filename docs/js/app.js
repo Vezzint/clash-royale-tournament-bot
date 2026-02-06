@@ -3,42 +3,103 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
 
-// === ПОЛУЧАЕМ ДАННЫЕ ИЗ TELEGRAM ===
-// Парсим initData если есть
-let initData = {};
-if (tg.initData) {
-    const params = new URLSearchParams(tg.initData);
-    const userStr = params.get('user');
-    if (userStr) {
+// === ПОЛУЧЕНИЕ ДАННЫХ ===
+
+function parseDataFromHash() {
+    // Получаем hash (всё после #)
+    const hash = window.location.hash;
+    
+    console.log('Full hash:', hash);
+    
+    if (hash && hash.includes('sync=')) {
         try {
-            initData = JSON.parse(userStr);
+            // Удаляем # и получаем часть после sync=
+            const hashPart = hash.substring(1); // убираем #
+            const syncPart = hashPart.split('sync=')[1];
+            
+            console.log('Sync part:', syncPart);
+            
+            // Декодируем из base64
+            const jsonData = atob(syncPart);
+            console.log('Decoded JSON:', jsonData);
+            
+            const data = JSON.parse(jsonData);
+            console.log('Parsed data:', data);
+            
+            return data;
         } catch (e) {
-            console.error('Parse error:', e);
+            console.error('Parse hash error:', e);
         }
     }
+    
+    return null;
 }
 
-// Парсим URL параметры
-const urlParams = new URLSearchParams(window.location.search);
+function loadUserData() {
+    // 1. Проверяем hash (приоритет)
+    const hashData = parseDataFromHash();
+    if (hashData) {
+        console.log('Found data in hash!');
+        // Сохраняем в localStorage
+        localStorage.setItem('userData', JSON.stringify(hashData));
+        return hashData;
+    }
+    
+    // 2. Проверяем localStorage
+    const savedData = localStorage.getItem('userData');
+    if (savedData) {
+        try {
+            const data = JSON.parse(savedData);
+            console.log('Found data in localStorage:', data);
+            return data;
+        } catch (e) {
+            console.error('Parse localStorage error:', e);
+        }
+    }
+    
+    // 3. Данные не найдены
+    console.log('No data found!');
+    return null;
+}
 
-// ПРИОРИТЕТ: initDataUnsafe > URL params
+// Загружаем данные
+const loadedData = loadUserData();
+
+// Базовые данные из Telegram
 let userData = {
-    userId: tg.initDataUnsafe?.user?.id || urlParams.get('user_id') || null,
-    firstName: tg.initDataUnsafe?.user?.first_name || urlParams.get('first_name') || 'Player',
-    username: tg.initDataUnsafe?.user?.username || urlParams.get('username') || 'player',
-    playerTag: urlParams.get('player_tag') || null,
-    currentMonthPoints: parseInt(urlParams.get('points')) || 0,
-    totalPoints: parseInt(urlParams.get('total_points')) || 0,
-    gamesPlayed: parseInt(urlParams.get('games')) || 0,
-    wins: parseInt(urlParams.get('wins')) || 0,
-    losses: parseInt(urlParams.get('losses')) || 0,
-    position: urlParams.get('position') || '-',
-    registered: urlParams.get('registered') === '1'
+    userId: tg.initDataUnsafe?.user?.id || null,
+    firstName: tg.initDataUnsafe?.user?.first_name || 'Player',
+    username: tg.initDataUnsafe?.user?.username || 'player',
+    playerTag: null,
+    currentMonthPoints: 0,
+    totalPoints: 0,
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+    position: '-',
+    registered: false
 };
 
-// Отладка
-console.log('URL params:', Object.fromEntries(urlParams));
-console.log('User data:', userData);
+// Применяем загруженные данные
+if (loadedData) {
+    console.log('Applying loaded data...');
+    userData = {
+        userId: loadedData.user_id || userData.userId,
+        firstName: loadedData.first_name || userData.firstName,
+        username: userData.username,
+        playerTag: loadedData.player_tag || null,
+        currentMonthPoints: loadedData.points || 0,
+        totalPoints: loadedData.total_points || 0,
+        gamesPlayed: loadedData.games || 0,
+        wins: loadedData.wins || 0,
+        losses: loadedData.losses || 0,
+        position: loadedData.position || '-',
+        registered: loadedData.registered === true || loadedData.registered === 'true'
+    };
+}
+
+console.log('=== FINAL USER DATA ===');
+console.log(userData);
 console.log('Is registered:', userData.registered);
 
 let selectedMode = null;
@@ -47,7 +108,8 @@ let selectedMode = null;
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
     setupEventListeners();
-    loadUserData();
+    updateUserInfo();
+    updateStats();
     updateCountdown();
     setInterval(updateCountdown, 60000);
 });
@@ -74,7 +136,7 @@ function setupEventListeners() {
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             if (!userData.registered) {
-                tg.showAlert('Сначала зарегистрируйся через команду /register');
+                tg.showAlert('Сначала зарегистрируйся через /register, затем используй /sync');
                 return;
             }
             selectMode(btn.dataset.mode);
@@ -148,20 +210,14 @@ async function verifyGame() {
     }, 2000);
 }
 
-function loadUserData() {
-    updateUserInfo();
-    updateStats();
-}
-
 function updateUserInfo() {
     document.getElementById('userName').textContent = userData.firstName;
     
-    if (userData.playerTag) {
+    if (userData.registered && userData.playerTag) {
         document.getElementById('playerTag').textContent = userData.playerTag;
     } else {
-        // Показываем отладочную информацию
-        const debugInfo = `registered=${userData.registered}, userId=${userData.userId}`;
-        document.getElementById('playerTag').textContent = debugInfo;
+        // Показываем статус для отладки
+        document.getElementById('playerTag').textContent = `registered=${userData.registered}, userId=${userData.userId}`;
     }
     
     document.getElementById('userPoints').textContent = userData.currentMonthPoints;
@@ -192,6 +248,7 @@ function loadHistory() {
             <div class="empty-state">
                 <div class="empty-state-icon">⚠️</div>
                 <p>Зарегистрируйся через /register</p>
+                <p class="hint">Затем используй /sync для синхронизации</p>
             </div>
         `;
         return;
@@ -230,7 +287,7 @@ let currentOpponent = null;
 
 function startMatchSearch() {
     if (!userData.registered) {
-        tg.showAlert('Сначала зарегистрируйся через /register');
+        tg.showAlert('Сначала зарегистрируйся через /register, затем используй /sync');
         return;
     }
     
