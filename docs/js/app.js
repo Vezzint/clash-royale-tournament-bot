@@ -3,13 +3,20 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
 
+// === ОТЛАДКА - УДАЛИ ПОТОМ ===
+console.log('=== MINI APP DEBUG ===');
+console.log('Full URL:', window.location.href);
+console.log('Search params:', window.location.search);
+console.log('All params:', Object.fromEntries(new URLSearchParams(window.location.search)));
+// === КОНЕЦ ОТЛАДКИ ===
+
 // Парсим параметры из URL
 const urlParams = new URLSearchParams(window.location.search);
 
 // Данные пользователя из URL
 let userData = {
     userId: urlParams.get('user_id') || tg.initDataUnsafe?.user?.id || null,
-    firstName: tg.initDataUnsafe?.user?.first_name || 'Player',
+    firstName: urlParams.get('first_name') || tg.initDataUnsafe?.user?.first_name || 'Player',
     username: tg.initDataUnsafe?.user?.username || 'player',
     playerTag: urlParams.get('player_tag') || null,
     currentMonthPoints: parseInt(urlParams.get('points')) || 0,
@@ -20,6 +27,11 @@ let userData = {
     position: urlParams.get('position') || '-',
     registered: urlParams.get('registered') === '1'
 };
+
+// === ОТЛАДКА ===
+console.log('Parsed userData:', userData);
+console.log('Is registered?', userData.registered);
+// === КОНЕЦ ОТЛАДКИ ===
 
 let selectedMode = null;
 
