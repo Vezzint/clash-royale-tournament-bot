@@ -3,12 +3,12 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.enableClosingConfirmation();
 
-// Mock data (в реальном приложении данные будут с сервера)
+// Данные пользователя
 let userData = {
-    userId: tg.initDataUnsafe?.user?.id || 123456,
+    userId: tg.initDataUnsafe?.user?.id || null,
     firstName: tg.initDataUnsafe?.user?.first_name || 'Player',
     username: tg.initDataUnsafe?.user?.username || 'player',
-    playerTag: '#ABC123',
+    playerTag: null,
     currentMonthPoints: 0,
     totalPoints: 0,
     gamesPlayed: 0,
@@ -23,18 +23,19 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     loadUserData();
     updateCountdown();
-    setInterval(updateCountdown, 60000); // Обновляем каждую минуту
+    setInterval(updateCountdown, 60000);
 });
 
 function initApp() {
-    // Применяем тему Telegram
-    document.body.style.backgroundColor = tg.backgroundColor || '#ffffff';
-    document.body.style.color = tg.textColor || '#000000';
+    // Применяем темную тему
+    document.body.style.backgroundColor = '#1a1a1a';
     
-    // Устанавливаем главную кнопку
-    tg.MainButton.setText('Закрыть');
-    tg.MainButton.onClick(() => tg.close());
+    // Настраиваем главную кнопку
     tg.MainButton.hide();
+    
+    // Показываем кнопку "Назад" в Telegram
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => tg.close());
 }
 
 function setupEventListeners() {
@@ -74,6 +75,8 @@ function switchTab(tabName) {
     } else if (tabName === 'rewards') {
         loadUserPosition();
     }
+    
+    tg.HapticFeedback.impactOccurred('soft');
 }
 
 function selectMode(mode) {
@@ -96,7 +99,7 @@ function selectMode(mode) {
 
 async function verifyGame() {
     if (!selectedMode) {
-        tg.showAlert('Выбери режим игры!');
+        showError('Выбери режим игры!');
         return;
     }
     
@@ -106,158 +109,204 @@ async function verifyGame() {
     
     tg.HapticFeedback.impactOccurred('medium');
     
-    // В реальном приложении здесь будет запрос к боту
-    // Для демо используем setTimeout
+    // Отправляем команду боту
+    sendVerifyCommand(selectedMode);
+    
+    // Таймаут для проверки
     setTimeout(() => {
-        // Симулируем успешную проверку
-        const mockResult = {
-            result: Math.random() > 0.5 ? 'win' : 'loss',
-            crowns: Math.floor(Math.random() * 4),
-            opponentCrowns: Math.floor(Math.random() * 4),
-            points: Math.floor(Math.random() * 30) + 10
-        };
-        
-        userData.gamesPlayed++;
-        userData.currentMonthPoints += mockResult.points;
-        userData.totalPoints += mockResult.points;
-        
-        if (mockResult.result === 'win') {
-            userData.wins++;
-        }
-        
-        updateUserInfo();
-        updateStats();
-        
-        const resultEmoji = mockResult.result === 'win' ? '🏆' : '💔';
-        const resultText = mockResult.result === 'win' ? 'Победа' : 'Поражение';
-        
-        tg.showPopup({
-            title: `${resultEmoji} ${resultText}!`,
-            message: `Короны: ${mockResult.crowns} - ${mockResult.opponentCrowns}\nПолучено очков: +${mockResult.points}`,
-            buttons: [{type: 'ok'}]
-        });
-        
-        tg.HapticFeedback.notificationOccurred('success');
-        
         btn.textContent = '✅ Проверить игру';
         btn.disabled = false;
         
-        // Сбрасываем выбор режима
+        // Сбрасываем выбор
         selectedMode = null;
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
         document.getElementById('verificationSection').style.display = 'none';
-    }, 2000);
+        
+        // Обновляем данные
+        setTimeout(() => {
+            loadUserData();
+        }, 2000);
+    }, 3000);
+}
+
+function sendVerifyCommand(mode) {
+    // Отправляем данные боту
+    const data = {
+        action: 'verify',
+        mode: mode,
+        userId: userData.userId,
+        timestamp: Date.now()
+    };
+    
+    tg.sendData(JSON.stringify(data));
 }
 
 function loadUserData() {
-    // В реальном приложении загрузка с сервера через Telegram.WebApp.initData
+    // Обновляем информацию о пользователе
     updateUserInfo();
-    updateStats();
+    
+    // Загружаем статистику из localStorage (временно)
+    const stats = getLocalStats();
+    updateStats(stats);
+}
+
+function getLocalStats() {
+    const saved = localStorage.getItem('userStats');
+    if (saved) {
+        return JSON.parse(saved);
+    }
+    return {
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0
+    };
+}
+
+function saveLocalStats(stats) {
+    localStorage.setItem('userStats', JSON.stringify(stats));
 }
 
 function updateUserInfo() {
     document.getElementById('userName').textContent = userData.firstName;
-    document.getElementById('playerTag').textContent = userData.playerTag;
-    document.getElementById('userPoints').textContent = userData.currentMonthPoints;
-    document.getElementById('userAvatar').textContent = userData.firstName[0];
+    
+    // Получаем player tag из URL параметров если есть
+    const urlParams = new URLSearchParams(window.location.search);
+    const playerTag = urlParams.get('player_tag');
+    
+    if (playerTag) {
+        userData.playerTag = playerTag;
+        document.getElementById('playerTag').textContent = playerTag;
+    } else {
+        document.getElementById('playerTag').textContent = 'Не зарегистрирован';
+    }
+    
+    // Получаем очки из URL если есть
+    const points = urlParams.get('points');
+    if (points) {
+        userData.currentMonthPoints = parseInt(points);
+        document.getElementById('userPoints').textContent = points;
+    } else {
+        document.getElementById('userPoints').textContent = '0';
+    }
+    
+    // Устанавливаем аватар
+    const avatar = document.getElementById('userAvatar');
+    avatar.textContent = userData.firstName.charAt(0).toUpperCase();
 }
 
-function updateStats() {
-    document.getElementById('gamesPlayed').textContent = userData.gamesPlayed;
-    document.getElementById('wins').textContent = userData.wins;
-    const winrate = userData.gamesPlayed > 0 
-        ? ((userData.wins / userData.gamesPlayed) * 100).toFixed(1) 
+function updateStats(stats) {
+    document.getElementById('gamesPlayed').textContent = stats.gamesPlayed || 0;
+    document.getElementById('wins').textContent = stats.wins || 0;
+    
+    const winrate = stats.gamesPlayed > 0 
+        ? ((stats.wins / stats.gamesPlayed) * 100).toFixed(1) 
         : 0;
     document.getElementById('winrate').textContent = winrate + '%';
 }
 
 function loadLeaderboard() {
     const list = document.getElementById('leaderboardList');
+    list.innerHTML = '<div class="loading">Загрузка...</div>';
     
-    // Mock данные
-    const mockLeaderboard = [
-        { rank: 1, name: 'ProGamer', tag: '#PRO123', points: 1250 },
-        { rank: 2, name: 'CrownKing', tag: '#KING99', points: 1100 },
-        { rank: 3, name: 'Arena15', tag: '#AR15', points: 980 },
-        { rank: 4, name: 'Challenger', tag: '#CH777', points: 850 },
-        { rank: 5, name: 'Winner', tag: '#WIN01', points: 720 },
-    ];
+    // Запрашиваем данные у бота
+    requestLeaderboard();
     
-    list.innerHTML = mockLeaderboard.map(player => `
-        <div class="leaderboard-item ${player.rank <= 3 ? 'top-3' : ''}">
-            <div class="leaderboard-rank">
-                ${player.rank <= 3 ? ['🥇', '🥈', '🥉'][player.rank - 1] : player.rank}
+    // Временно показываем пример
+    setTimeout(() => {
+        const mockLeaderboard = [
+            { rank: 1, name: 'Loading...', tag: '#----', points: 0 }
+        ];
+        
+        list.innerHTML = mockLeaderboard.map(player => `
+            <div class="leaderboard-item">
+                <div class="leaderboard-rank">${player.rank}</div>
+                <div class="leaderboard-info">
+                    <div class="leaderboard-name">${player.name}</div>
+                    <div class="leaderboard-tag">${player.tag}</div>
+                </div>
+                <div class="leaderboard-points">⭐ ${player.points}</div>
             </div>
-            <div class="leaderboard-info">
-                <div class="leaderboard-name">${player.name}</div>
-                <div class="leaderboard-tag">${player.tag}</div>
-            </div>
-            <div class="leaderboard-points">⭐ ${player.points}</div>
-        </div>
-    `).join('');
+        `).join('');
+        
+        // Добавляем сообщение
+        list.innerHTML += '<div class="hint" style="text-align: center; margin-top: 1rem;">Используй команды бота для просмотра полной таблицы</div>';
+    }, 500);
+}
+
+function requestLeaderboard() {
+    const data = {
+        action: 'get_leaderboard',
+        userId: userData.userId
+    };
+    // В будущем можно отправить боту
+    // tg.sendData(JSON.stringify(data));
 }
 
 function loadHistory() {
     const list = document.getElementById('historyList');
+    list.innerHTML = '<div class="loading">Загрузка...</div>';
     
-    // Mock данные
-    const mockHistory = [
-        { 
-            result: 'win', 
-            crowns: 3, 
-            opponentCrowns: 1, 
-            mode: 'Ladder', 
-            points: 25,
-            time: '2 часа назад'
-        },
-        { 
-            result: 'loss', 
-            crowns: 0, 
-            opponentCrowns: 2, 
-            mode: '1v1', 
-            points: 5,
-            time: '5 часов назад'
-        },
-        { 
-            result: 'win', 
-            crowns: 2, 
-            opponentCrowns: 1, 
-            mode: 'Challenge', 
-            points: 30,
-            time: 'Вчера'
-        },
-    ];
-    
-    if (mockHistory.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">🎮</div>
-                <p>Пока нет игр</p>
+    setTimeout(() => {
+        const history = getLocalHistory();
+        
+        if (history.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎮</div>
+                    <p>Пока нет игр</p>
+                    <p class="hint">Сыграй свою первую игру!</p>
+                </div>
+            `;
+            return;
+        }
+        
+        list.innerHTML = history.map(game => `
+            <div class="history-item ${game.result}">
+                <div class="history-header">
+                    <div class="history-result">
+                        ${game.result === 'win' ? '🏆 Победа' : '💔 Поражение'}
+                    </div>
+                    <div class="history-points">+${game.points}</div>
+                </div>
+                <div class="history-details">
+                    👑 ${game.crowns} - ${game.opponentCrowns} | 🎮 ${game.mode}
+                </div>
+                <div class="history-time">🕐 ${game.time}</div>
             </div>
-        `;
-        return;
+        `).join('');
+    }, 500);
+}
+
+function getLocalHistory() {
+    const saved = localStorage.getItem('gameHistory');
+    if (saved) {
+        return JSON.parse(saved);
+    }
+    return [];
+}
+
+function addToHistory(game) {
+    const history = getLocalHistory();
+    history.unshift(game);
+    
+    // Храним только последние 20 игр
+    if (history.length > 20) {
+        history.pop();
     }
     
-    list.innerHTML = mockHistory.map(game => `
-        <div class="history-item ${game.result}">
-            <div class="history-header">
-                <div class="history-result">
-                    ${game.result === 'win' ? '🏆 Победа' : '💔 Поражение'}
-                </div>
-                <div class="history-points">+${game.points}</div>
-            </div>
-            <div class="history-details">
-                👑 ${game.crowns} - ${game.opponentCrowns} | 🎮 ${game.mode}
-            </div>
-            <div class="history-time">🕐 ${game.time}</div>
-        </div>
-    `).join('');
+    localStorage.setItem('gameHistory', JSON.stringify(history));
 }
 
 function loadUserPosition() {
-    // Mock позиция
-    const position = Math.floor(Math.random() * 50) + 1;
-    document.getElementById('userPosition').textContent = position;
+    // Запрашиваем позицию у бота
+    const urlParams = new URLSearchParams(window.location.search);
+    const position = urlParams.get('position');
+    
+    if (position) {
+        document.getElementById('userPosition').textContent = position;
+    } else {
+        document.getElementById('userPosition').textContent = '-';
+    }
 }
 
 function updateCountdown() {
@@ -271,7 +320,45 @@ function updateCountdown() {
     document.getElementById('countdown').textContent = `${days}д ${hours}ч`;
 }
 
-// Отправка данных боту
-function sendDataToBot(data) {
-    tg.sendData(JSON.stringify(data));
+// Утилиты
+function showError(message) {
+    tg.showAlert(message);
+    tg.HapticFeedback.notificationOccurred('error');
 }
+
+function showSuccess(message) {
+    tg.showAlert(message);
+    tg.HapticFeedback.notificationOccurred('success');
+}
+
+// Слушаем события от Telegram
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.action === 'game_verified') {
+        // Обновляем данные после верификации
+        const gameData = event.data.data;
+        
+        // Обновляем статистику
+        const stats = getLocalStats();
+        stats.gamesPlayed++;
+        if (gameData.result === 'win') stats.wins++;
+        else if (gameData.result === 'loss') stats.losses++;
+        saveLocalStats(stats);
+        updateStats(stats);
+        
+        // Добавляем в историю
+        addToHistory({
+            result: gameData.result,
+            crowns: gameData.crowns,
+            opponentCrowns: gameData.opponentCrowns,
+            mode: gameData.mode,
+            points: gameData.points,
+            time: 'Только что'
+        });
+        
+        // Обновляем очки
+        userData.currentMonthPoints += gameData.points;
+        document.getElementById('userPoints').textContent = userData.currentMonthPoints;
+        
+        showSuccess(`Игра засчитана! +${gameData.points} очков`);
+    }
+});
