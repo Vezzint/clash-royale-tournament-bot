@@ -2,7 +2,7 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
@@ -27,9 +27,6 @@ cr_api = ClashRoyaleAPI(config.CLASH_ROYALE_API_TOKEN)
 class Registration(StatesGroup):
     waiting_for_tag = State()
 
-class GameSubmission(StatesGroup):
-    waiting_for_verification = State()
-
 # Команды
 @router.message(CommandStart())
 async def cmd_start(message: Message):
@@ -38,29 +35,49 @@ async def cmd_start(message: Message):
     
     # Формируем URL с параметрами
     mini_app_url = config.MINI_APP_URL
+    
     if user:
-        mini_app_url += f"?player_tag={user['player_tag']}&points={user['current_month_points']}&user_id={message.from_user.id}"
+        # Получаем позицию в рейтинге
+        leaderboard = db.get_leaderboard(limit=1000)
+        position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), '-')
+        
+        # Получаем статистику
+        games = db.get_user_games(message.from_user.id, limit=1000)
+        wins = sum(1 for g in games if g['result'] == 'win')
+        losses = sum(1 for g in games if g['result'] == 'loss')
+        
+        mini_app_url += (
+            f"?user_id={message.from_user.id}"
+            f"&player_tag={user['player_tag']}"
+            f"&points={user['current_month_points']}"
+            f"&total_points={user['total_points']}"
+            f"&position={position}"
+            f"&games={len(games)}"
+            f"&wins={wins}"
+            f"&losses={losses}"
+            f"&registered=1"
+        )
+    else:
+        mini_app_url += f"?user_id={message.from_user.id}&registered=0"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🎮 Открыть Mini App",
             web_app=WebAppInfo(url=mini_app_url)
         )],
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="stats")],
-        [InlineKeyboardButton(text="🏆 Таблица лидеров", callback_data="leaderboard")]
+        [
+            InlineKeyboardButton(text="📊 Статистика", callback_data="stats"),
+            InlineKeyboardButton(text="🏆 Топ", callback_data="leaderboard")
+        ]
     ])
     
     if user:
-        # Получаем позицию в рейтинге
-        leaderboard = db.get_leaderboard(limit=1000)
-        position = next((i for i, p in enumerate(leaderboard, 1) if p['user_id'] == message.from_user.id), None)
-        
         await message.answer(
             f"👋 Привет, {message.from_user.first_name}!\n\n"
             f"🎮 Твой тег: <code>{user['player_tag']}</code>\n"
             f"⭐ Очки в этом месяце: {user['current_month_points']}\n"
             f"🏅 Всего очков: {user['total_points']}\n"
-            f"📊 Позиция в рейтинге: {position if position else '-'}\n\n"
+            f"📊 Позиция: {position} место\n\n"
             f"Открывай Mini App для участия в турнирах!",
             reply_markup=keyboard,
             parse_mode="HTML"
@@ -69,11 +86,9 @@ async def cmd_start(message: Message):
         await message.answer(
             "👋 Привет! Добро пожаловать в турнирный бот Clash Royale!\n\n"
             "🎮 Участвуй в соревнованиях и получай награды в конце месяца!\n\n"
-            "Для начала зарегистрируйся командой /register",
+            "⚠️ Для начала зарегистрируйся командой /register",
             reply_markup=keyboard
         )
-
-
 
 @router.message(Command("register"))
 async def cmd_register(message: Message, state: FSMContext):
@@ -139,7 +154,7 @@ async def process_registration(message: Message, state: FSMContext):
             f"👤 Имя: {player_data.get('name', 'Unknown')}\n"
             f"🏆 Трофеи: {player_data.get('trophies', 0)}\n"
             f"🎖 Уровень: {player_data.get('expLevel', 0)}\n\n"
-            f"Теперь открой Mini App чтобы начать играть!"
+            f"Теперь используй /start чтобы открыть Mini App!"
         )
     else:
         await msg.edit_text("❌ Ошибка регистрации. Попробуй позже.")
@@ -179,6 +194,9 @@ async def cmd_verify(message: Message):
         'draw': '🤝 Ничья'
     }
     
+    # Обновляем данные пользователя
+    user = db.get_user(message.from_user.id)
+    
     await msg.edit_text(
         f"✅ Игра засчитана!\n\n"
         f"{result_emoji[battle_data['result']]}\n"
@@ -186,7 +204,7 @@ async def cmd_verify(message: Message):
         f"🎮 Режим: {battle_data['game_mode']}\n"
         f"🏟 Арена: {battle_data['arena']}\n"
         f"⭐ Получено очков: +{points}\n\n"
-        f"💰 Всего очков в этом месяце: {user['current_month_points'] + points}"
+        f"💰 Всего очков в этом месяце: {user['current_month_points']}"
     )
 
 @router.message(Command("stats"))
@@ -198,19 +216,21 @@ async def cmd_stats(message: Message):
         await message.answer("❌ Сначала зарегистрируйся: /register")
         return
     
-    games = db.get_user_games(message.from_user.id, limit=10)
+    games = db.get_user_games(message.from_user.id, limit=1000)
     
     wins = sum(1 for g in games if g['result'] == 'win')
     losses = sum(1 for g in games if g['result'] == 'loss')
+    draws = sum(1 for g in games if g['result'] == 'draw')
     
     stats_text = (
         f"📊 Твоя статистика\n\n"
         f"🎮 Player Tag: <code>{user['player_tag']}</code>\n"
         f"⭐ Очки в этом месяце: {user['current_month_points']}\n"
         f"🏅 Всего очков: {user['total_points']}\n\n"
-        f"📈 Последние 10 игр:\n"
+        f"📈 Всего игр: {len(games)}\n"
         f"✅ Побед: {wins}\n"
         f"❌ Поражений: {losses}\n"
+        f"🤝 Ничьих: {draws}\n"
         f"📊 Винрейт: {wins / len(games) * 100 if games else 0:.1f}%"
     )
     
@@ -238,37 +258,26 @@ async def cmd_leaderboard(message: Message):
 
 # Callback handlers
 @router.callback_query(F.data == "stats")
-async def callback_stats(callback):
+async def callback_stats(callback: CallbackQuery):
     await callback.answer()
+    user = db.get_user(callback.from_user.id)
+    
+    if not user:
+        await callback.message.answer("❌ Сначала зарегистрируйся: /register")
+        return
+    
     await cmd_stats(callback.message)
 
 @router.callback_query(F.data == "leaderboard")
-async def callback_leaderboard(callback):
+async def callback_leaderboard(callback: CallbackQuery):
     await callback.answer()
     await cmd_leaderboard(callback.message)
-
-# Периодическая задача для сброса очков
-async def monthly_reset_task():
-    """Сброс очков в начале месяца"""
-    while True:
-        now = datetime.now()
-        
-        # Проверяем, первый ли день месяца и 00:00
-        if now.day == 1 and now.hour == 0 and now.minute == 0:
-            logger.info("Running monthly reset...")
-            db.reset_monthly_points()
-            await asyncio.sleep(60)  # Спим минуту чтобы не повторять
-        
-        await asyncio.sleep(60)  # Проверяем каждую минуту
 
 async def main():
     """Запуск бота"""
     dp.include_router(router)
     
-    # Запускаем фоновую задачу
-    asyncio.create_task(monthly_reset_task())
-    
-    logger.info("Bot started!")
+    logger.info("✅ Bot started successfully!")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
