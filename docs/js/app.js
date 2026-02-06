@@ -201,3 +201,147 @@ function updateCountdown() {
     
     document.getElementById('countdown').textContent = `${days}д ${hours}ч`;
 }
+// === MATCH FINDING SYSTEM ===
+
+let matchSearching = false;
+let matchFound = false;
+let currentOpponent = null;
+
+// Setup match finding listeners
+document.getElementById('findMatchBtn').addEventListener('click', startMatchSearch);
+document.getElementById('cancelSearchBtn').addEventListener('click', cancelMatchSearch);
+document.getElementById('verifyMatchBtn').addEventListener('click', verifyMatch);
+
+function startMatchSearch() {
+    if (!userData.registered) {
+        tg.showAlert('Сначала зарегистрируйся через /register');
+        return;
+    }
+    
+    matchSearching = true;
+    
+    // Скрываем кнопку поиска
+    document.getElementById('findMatchBtn').style.display = 'none';
+    
+    // Показываем анимацию поиска
+    document.getElementById('searchingSection').style.display = 'block';
+    
+    tg.HapticFeedback.impactOccurred('medium');
+    
+    // Симулируем поиск (3-7 секунд)
+    const searchTime = Math.random() * 4000 + 3000; // 3-7 сек
+    
+    setTimeout(() => {
+        if (matchSearching) {
+            findMatch();
+        }
+    }, searchTime);
+}
+
+function cancelMatchSearch() {
+    matchSearching = false;
+    
+    // Скрываем поиск
+    document.getElementById('searchingSection').style.display = 'none';
+    
+    // Показываем кнопку поиска
+    document.getElementById('findMatchBtn').style.display = 'block';
+    
+    tg.HapticFeedback.impactOccurred('soft');
+}
+
+function findMatch() {
+    matchSearching = false;
+    matchFound = true;
+    
+    // Генерируем случайного соперника
+    currentOpponent = generateOpponent();
+    
+    // Скрываем поиск
+    document.getElementById('searchingSection').style.display = 'none';
+    
+    // Показываем найденный матч
+    showMatchFound(currentOpponent);
+    
+    tg.HapticFeedback.notificationOccurred('success');
+}
+
+function generateOpponent() {
+    const names = [
+        'ProGamer', 'CrownKing', 'Arena15', 'Challenger', 'Winner',
+        'Champion', 'Gladiator', 'Warrior', 'Conqueror', 'Master',
+        'Legend', 'Titan', 'Phoenix', 'Dragon', 'Shadow'
+    ];
+    
+    const name = names[Math.floor(Math.random() * names.length)];
+    const trophies = Math.floor(Math.random() * 3000) + 4000; // 4000-7000
+    const tag = '#' + Math.random().toString(36).substr(2, 8).toUpperCase();
+    
+    return {
+        name: name,
+        trophies: trophies,
+        tag: tag,
+        avatar: name.charAt(0)
+    };
+}
+
+function showMatchFound(opponent) {
+    // Заполняем данные игрока
+    document.getElementById('yourAvatar').textContent = userData.firstName.charAt(0).toUpperCase();
+    document.getElementById('yourName').textContent = userData.firstName;
+    document.getElementById('yourTrophies').textContent = '🏆 ' + (userData.currentMonthPoints * 10);
+    
+    // Заполняем данные соперника
+    document.getElementById('opponentAvatar').textContent = opponent.avatar;
+    document.getElementById('opponentName').textContent = opponent.name;
+    document.getElementById('opponentTrophies').textContent = '🏆 ' + opponent.trophies;
+    document.getElementById('opponentNameStrong').textContent = opponent.name;
+    
+    // Показываем секцию
+    document.getElementById('matchFoundSection').style.display = 'block';
+}
+
+function verifyMatch() {
+    if (!currentOpponent) {
+        tg.showAlert('Ошибка: соперник не найден');
+        return;
+    }
+    
+    const btn = document.getElementById('verifyMatchBtn');
+    btn.textContent = '⏳ Проверяем...';
+    btn.disabled = true;
+    
+    tg.HapticFeedback.impactOccurred('medium');
+    
+    // Отправляем команду боту
+    tg.sendData(JSON.stringify({
+        action: 'verify_match',
+        opponent: currentOpponent,
+        userId: userData.userId
+    }));
+    
+    tg.showAlert('Команда отправлена! Используй /verify в боте для проверки игры');
+    
+    setTimeout(() => {
+        // Сбрасываем всё
+        resetMatchFinding();
+    }, 2000);
+}
+
+function resetMatchFinding() {
+    matchFound = false;
+    currentOpponent = null;
+    
+    // Скрываем секции
+    document.getElementById('matchFoundSection').style.display = 'none';
+    document.getElementById('searchingSection').style.display = 'none';
+    
+    // Показываем кнопку поиска
+    document.getElementById('findMatchBtn').style.display = 'block';
+    
+    // Сбрасываем кнопку
+    const btn = document.getElementById('verifyMatchBtn');
+    btn.textContent = '✅ Проверить игру';
+    btn.disabled = false;
+}
+
