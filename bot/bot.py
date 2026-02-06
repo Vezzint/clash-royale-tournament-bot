@@ -74,6 +74,7 @@ async def cmd_start(message: Message):
         )
 
 
+
 @router.message(Command("register"))
 async def cmd_register(message: Message, state: FSMContext):
     """Регистрация пользователя"""
