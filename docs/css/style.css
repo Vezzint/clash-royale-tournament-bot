@@ -490,3 +490,200 @@ body {
     border-radius: 0.75rem;
     margin: 1rem 0;
 }
+/* Match Finding Styles */
+.searching-container {
+    text-align: center;
+    padding: 2rem 1rem;
+    margin-top: 1rem;
+}
+
+.searching-spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.searching-text {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.searching-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.searching-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.searching-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.searching-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% { 
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Match Found Styles */
+.match-found {
+    text-align: center;
+    padding: 1rem;
+    margin-top: 1rem;
+    animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.match-found-header {
+    margin-bottom: 1.5rem;
+}
+
+.vs-animation {
+    font-size: 3rem;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+.match-players {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 1.5rem 0;
+    gap: 0.5rem;
+}
+
+.player-card {
+    flex: 1;
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 2px solid var(--border-color);
+}
+
+.player-card.you {
+    border-color: var(--accent-color);
+}
+
+.player-card.opponent {
+    border-color: var(--danger-color);
+}
+
+.player-avatar {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 0.5rem;
+    border-radius: 50%;
+    background: var(--accent-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--bg-primary);
+}
+
+.player-card.opponent .player-avatar {
+    background: var(--danger-color);
+}
+
+.player-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+}
+
+.player-trophies {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.vs-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+.match-info {
+    margin: 1rem 0;
+    color: var(--text-secondary);
+}
+
+.match-info strong {
+    color: var(--danger-color);
+}
+
+/* Animations for match found */
+.player-card {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.player-card.you {
+    animation-delay: 0.2s;
+}
+
+.player-card.opponent {
+    animation-delay: 0.4s;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
